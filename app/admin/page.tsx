@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/Lib/supabase"; // Correct relative path for admin folder
+import { supabase } from "@/Lib/supabase"; 
 
 interface Project {
   id: number;
@@ -13,18 +13,18 @@ interface Project {
 }
 
 export default function AdminDashboard() {
+  // === SECURITY STATE ===
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passcode, setPasscode] = useState("");
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State for image uploads
   const [imageFiles, setImageFiles] = useState<File[]>([]); 
-  
-  // States for Edit Mode
   const [editingId, setEditingId] = useState<number | null>(null);
   const [existingImages, setExistingImages] = useState<string[]>([]);
 
-  // Form State
   const [newProject, setNewProject] = useState({
     title: "",
     category: "",
@@ -32,9 +32,24 @@ export default function AdminDashboard() {
     tags: "",
   });
 
+  // Fetch projects only if authenticated
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (isAuthenticated) {
+      fetchProjects();
+    }
+  }, [isAuthenticated]);
+
+  // === LOGIN HANDLER ===
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // PALITAN ANG "admin123" NG SECRET PASSWORD MO!
+    if (passcode === "admin123") {
+      setIsAuthenticated(true);
+    } else {
+      alert("Unauthorized Access! Bawal pumasok haha.");
+      setPasscode("");
+    }
+  };
 
   const fetchProjects = async () => {
     setIsLoading(true);
@@ -47,24 +62,20 @@ export default function AdminDashboard() {
     setIsLoading(false);
   };
 
-  // Triggered when the "Edit" button is clicked on a project
   const handleEditClick = (project: Project) => {
     setEditingId(project.id);
     setNewProject({
       title: project.title,
       category: project.category,
       description: project.description,
-      tags: project.tags.join(", "), // Convert array back to comma-separated string
+      tags: project.tags.join(", "), 
     });
     setExistingImages(project.image_urls || []);
-    setImageFiles([]); // Clear any selected files
+    setImageFiles([]); 
     (document.getElementById('imageInput') as HTMLInputElement).value = '';
-    
-    // Smooth scroll to top so you can see the form
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Cancel edit mode
   const cancelEdit = () => {
     setEditingId(null);
     setNewProject({ title: "", category: "", description: "", tags: "" });
@@ -78,9 +89,8 @@ export default function AdminDashboard() {
     if (!newProject.title) return;
     setIsSubmitting(true);
 
-    let finalImageUrls = existingImages; // Default to existing images if editing
+    let finalImageUrls = existingImages; 
 
-    // Process new file uploads if any are selected
     if (imageFiles.length > 0) {
       const uploadedUrls: string[] = [];
       const uploadPromises = imageFiles.map(async (file) => {
@@ -102,7 +112,7 @@ export default function AdminDashboard() {
 
       try {
         const results = await Promise.all(uploadPromises);
-        finalImageUrls = results; // Replace old images with new ones
+        finalImageUrls = results; 
       } catch (error: any) {
         alert("Error uploading images: " + error.message);
         setIsSubmitting(false);
@@ -113,7 +123,6 @@ export default function AdminDashboard() {
     const tagsArray = newProject.tags.split(",").map((tag) => tag.trim()).filter(Boolean);
 
     if (editingId) {
-      // UPDATE EXISTING PROJECT
       const { data, error } = await supabase
         .from("projects")
         .update({
@@ -126,16 +135,13 @@ export default function AdminDashboard() {
         .eq("id", editingId)
         .select();
 
-      if (error) {
-        alert("Error updating project: " + error.message);
-      } else if (data) {
-        // Update local state to reflect changes
+      if (error) alert("Error updating project: " + error.message);
+      else if (data) {
         setProjects(projects.map(p => p.id === editingId ? data[0] : p));
         alert("Project Successfully Updated!");
-        cancelEdit(); // Reset form
+        cancelEdit(); 
       }
     } else {
-      // INSERT NEW PROJECT
       const { data, error } = await supabase
         .from("projects")
         .insert([{
@@ -147,12 +153,11 @@ export default function AdminDashboard() {
         }])
         .select();
 
-      if (error) {
-        alert("Error adding project: " + error.message);
-      } else if (data) {
+      if (error) alert("Error adding project: " + error.message);
+      else if (data) {
         setProjects([data[0], ...projects]);
         alert("Project Successfully Added!");
-        cancelEdit(); // Reset form
+        cancelEdit(); 
       }
     }
     
@@ -165,12 +170,53 @@ export default function AdminDashboard() {
     if (!error) setProjects(projects.filter((p) => p.id !== id));
   };
 
+  // === RENDER LOGIN SCREEN IF NOT AUTHENTICATED ===
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
+        <div className="bg-[#111111] border border-gray-800 p-8 rounded-2xl w-full max-w-md animate-fade-in-up">
+          <div className="flex justify-center mb-6">
+             <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center">
+                <span className="text-3xl">🔒</span>
+             </div>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2 text-center">Admin Access</h2>
+          <p className="text-sm text-gray-500 text-center mb-6">Enter your passcode to manage projects.</p>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                required
+                placeholder="Enter passcode..."
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">
+              Unlock Dashboard
+            </button>
+          </form>
+          
+          <div className="mt-6 text-center">
+            <a href="/" className="text-sm text-gray-500 hover:text-blue-400 transition-colors">&larr; Back to Public Site</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === RENDER ACTUAL DASHBOARD IF AUTHENTICATED ===
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 font-sans p-8">
       <div className="max-w-5xl mx-auto">
         <header className="mb-10 pb-6 border-b border-gray-800 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-          <a href="/" className="text-sm text-blue-400 hover:text-blue-300">View Public Site &rarr;</a>
+          <div className="flex gap-4 items-center">
+            <button onClick={() => setIsAuthenticated(false)} className="text-sm text-red-400 hover:text-red-300">Lock</button>
+            <a href="/" className="text-sm text-blue-400 hover:text-blue-300 border-l border-gray-700 pl-4">View Public Site &rarr;</a>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -183,7 +229,7 @@ export default function AdminDashboard() {
                 
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">
-                    Project Screenshots (Select Multiple)
+                    Project Screenshots (Hold Ctrl to select multiple)
                   </label>
                   <input
                     id="imageInput"
@@ -202,19 +248,19 @@ export default function AdminDashboard() {
 
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Title</label>
-                  <input type="text" required className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm" value={newProject.title} onChange={(e) => setNewProject({ ...newProject, title: e.target.value })} />
+                  <input type="text" required className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white" value={newProject.title} onChange={(e) => setNewProject({ ...newProject, title: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Category</label>
-                  <input type="text" className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm" value={newProject.category} onChange={(e) => setNewProject({ ...newProject, category: e.target.value })} />
+                  <input type="text" className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white" value={newProject.category} onChange={(e) => setNewProject({ ...newProject, category: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Tech Stack (comma separated)</label>
-                  <input type="text" className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm" value={newProject.tags} onChange={(e) => setNewProject({ ...newProject, tags: e.target.value })} />
+                  <input type="text" className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white" value={newProject.tags} onChange={(e) => setNewProject({ ...newProject, tags: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Description</label>
-                  <textarea className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm h-24 resize-none" value={newProject.description} onChange={(e) => setNewProject({ ...newProject, description: e.target.value })} />
+                  <textarea className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm h-24 resize-none text-white" value={newProject.description} onChange={(e) => setNewProject({ ...newProject, description: e.target.value })} />
                 </div>
                 
                 <div className="flex gap-3 mt-6">
