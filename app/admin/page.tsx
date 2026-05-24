@@ -40,15 +40,44 @@ export default function AdminDashboard() {
   }, [isAuthenticated]);
 
   // === LOGIN HANDLER ===
-  const handleLogin = (e: React.FormEvent) => {
+  // Baguhin ang state para may email at password na
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Pag-check kung may naka-login na (para hindi ka na hingan ng password palagi)
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setIsAuthenticated(true);
+      }
+    };
+    checkUser();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // PALITAN ANG "admin123" NG SECRET PASSWORD MO!
-    if (passcode === "admin123") {
+    setIsSubmitting(true);
+    
+    // Ito yung tatawag sa Supabase para i-verify yung email at password mo
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      alert("Login failed: " + error.message);
+    } else if (data.session) {
       setIsAuthenticated(true);
-    } else {
-      alert("Unauthorized Access! Bawal pumasok haha.");
-      setPasscode("");
+      setEmail("");
+      setPassword("");
     }
+    setIsSubmitting(false);
+  };
+  
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
   };
 
   const fetchProjects = async () => {
@@ -186,16 +215,24 @@ export default function AdminDashboard() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <input
+                type="email"
+                required
+                placeholder="Admin Email"
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-3 text-sm text-white mb-3"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <input
                 type="password"
                 required
-                placeholder="Enter passcode..."
-                className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
+                placeholder="Password"
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-3 text-sm text-white"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">
-              Unlock Dashboard
+            <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">
+              {isSubmitting ? "Verifying..." : "Secure Login"}
             </button>
           </form>
           
